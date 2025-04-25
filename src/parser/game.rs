@@ -1,3 +1,4 @@
+use pyo3::pyclass;
 use strum::EnumIter;
 use serde::Deserialize;
 
@@ -132,8 +133,9 @@ impl ToString for PlayType {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename = "weather")]
+#[pyclass(get_all)]
 pub struct Weather {
     pub condition: String,
     pub temperature: u32,
@@ -141,22 +143,25 @@ pub struct Weather {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename = "player")]
+#[pyclass(get_all)]
 pub struct Player {
     pub position: String,
     pub name: String,
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
+#[pyclass(get_all)]
 pub struct Team {
     pub id: u32,
     pub players: Vec<Player>,
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
+#[pyclass(get_all)]
 pub struct Context {
     pub game_pk: u32,
     pub date: String,
@@ -168,6 +173,7 @@ pub struct Context {
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[pyclass(get_all)]
 pub struct Inning {
     pub number: u32,
     pub top: bool,
@@ -175,6 +181,7 @@ pub struct Inning {
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[pyclass(get_all)]
 pub struct Movement {
     pub runner: String,
     pub start_base: String,
@@ -183,8 +190,9 @@ pub struct Movement {
 }
 
 #[allow(clippy::enum_variant_names, dead_code)]
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
 #[serde(tag = "type")]
+#[pyclass]
 pub enum Play {
     Groundout {
         inning: Inning,
@@ -875,6 +883,13 @@ impl PlayBuilder {
     }
 }
 
+#[derive(Debug)]
+#[pyclass(get_all)]
+pub struct Game {
+    pub context: Context,
+    pub plays: Vec<Play>,
+}
+
 pub struct GameBuilder {
     pub context: Option<Context>,
     pub plays: Vec<Play>,
@@ -916,5 +931,20 @@ impl GameBuilder {
         } else {
             None
         }
+    }
+
+    pub fn build(&self) -> Result<Game, String> {
+        if self.context.is_none() {
+            return Err("Context not set".to_string());
+        }
+
+        if self.plays.is_empty() {
+            return Err("Plays not set".to_string());
+        }
+
+        Ok(Game {
+            context: self.context.as_ref().unwrap().clone(),
+            plays: self.plays.clone(),
+        })
     }
 }
