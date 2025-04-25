@@ -1,5 +1,5 @@
 [package]
-name = "mlb-json-parser"
+name = "mlb-jsonl-parser"
 version = "0.1.0"
 edition = "2024"
 
