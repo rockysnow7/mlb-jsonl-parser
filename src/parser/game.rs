@@ -132,7 +132,7 @@ impl ToString for PlayType {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename = "weather")]
 pub struct Weather {
     pub condition: String,
@@ -141,7 +141,7 @@ pub struct Weather {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename = "player")]
 pub struct Player {
     pub position: String,
@@ -149,14 +149,14 @@ pub struct Player {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct Team {
     pub id: u32,
     pub players: Vec<Player>,
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct Context {
     pub game_pk: u32,
     pub date: String,

@@ -176,35 +176,24 @@ struct PlayInformation {
     movements: Option<Vec<Movement>>,
 }
 
-/// A streaming parser for the JSON format described in `FORMAT.md`.
+/// A streaming parser for the format described in `FORMAT.md`.
 pub struct Parser {
     /// Whether to print debug information.
     debug: bool,
-    /// The type of line being parsed.
+    /// The type of line to be parsed next.
     line_type: LineType,
-    /// A regex that represents the current line to be parsed.
-    regex: Option<Regex>,
-    /// A cache of the most recent derivative of `regex`.
-    derivative: Option<Regex>,
-    /// A buffer of characters that have been accepted but do not yet form a full line to be parsed.
-    line_buffer: String,
-    /// A builder for the game being parsed.
+    /// The builder for the game.
     pub game_builder: GameBuilder,
 }
 
 impl Parser {
+    /// Creates a new parser. If `debug` is true, debug information will be printed during parsing.
     pub fn new(debug: bool) -> Self {
-        let mut parser = Self {
+        Self {
             debug,
             line_type: LineType::Context,
-            regex: None,
-            derivative: None,
-            line_buffer: String::new(),
             game_builder: GameBuilder::new(),
-        };
-        parser.refresh_regex();
-
-        parser
+        }
     }
 
     /// The JSON schema for a `movement` object.
@@ -345,42 +334,31 @@ impl Parser {
         }
     }
 
-    /// Refreshes `self.regex`.
-    fn refresh_regex(&mut self) {
-        let regex = match &self.line_type {
+    /// Generates the regex for the next line to be parsed.
+    fn generate_regex(&self) -> String {
+        match &self.line_type {
             LineType::Context => context_section_json().to_regex(),
             LineType::PlayIntroduction => play_introduction_json().to_regex(),
-            LineType::PlayInformation => {
-                let play_type = &self.game_builder.play_builder.play_type.unwrap();
-                self.play_information_json_for_play_type(play_type).to_regex()
-            },
-        };
-        println!("\n\n[parser] regex: {regex:?}\n\n");
-        self.regex = Some(Regex::new(&regex).unwrap());
+            LineType::PlayInformation => self.play_information_json_for_play_type(&self.game_builder.play_builder.play_type.unwrap()).to_regex(),
+        }
     }
 
-    /// Parses the current line buffer as a context section.
-    fn parse_context(&mut self) {
-        if self.debug {
-            println!("[parser] parsing context");
-            println!("[parser] line buffer: {:?}", self.line_buffer);
-        }
-        let context: Context = serde_json::from_str(&self.line_buffer).unwrap();
+    /// Parses the given line as a `Context` object.
+    fn parse_context(&mut self, line: &str) {
+        let context: Context = serde_json::from_str(line).unwrap();
         self.game_builder.add_context(context);
     }
 
-    /// Parses the current line buffer as a play introduction.
-    fn parse_play_introduction(&mut self) {
-        let play_introduction: PlayIntroduction = serde_json::from_str(&self.line_buffer).unwrap();
-
-        self.game_builder.clear_play_builder();
-        self.game_builder.play_builder.set_inning(play_introduction.inning);
-        self.game_builder.play_builder.set_play_type(play_introduction.play_type);
+    /// Parses the given line as a `PlayIntroduction` object.
+    fn parse_play_introduction(&mut self, line: &str) {
+        let play_introduction: PlayIntroduction = serde_json::from_str(line).unwrap();
+        self.game_builder.play_builder.inning = Some(play_introduction.inning);
+        self.game_builder.play_builder.play_type = Some(play_introduction.play_type);
     }
 
-    /// Parses the current line buffer as a play information object.
-    fn parse_play_information(&mut self) {
-        let play_information: PlayInformation = serde_json::from_str(&self.line_buffer).unwrap();
+    /// Parses the given line as a `PlayInformation` object.
+    fn parse_play_information(&mut self, line: &str) {
+        let play_information: PlayInformation = serde_json::from_str(line).unwrap();
 
         if let Some(base) = play_information.base {
             self.game_builder.play_builder.set_base(base);
@@ -411,116 +389,61 @@ impl Parser {
         self.game_builder.add_play(play);
     }
 
-    /// Parses the current line buffer and updates `self.line_type`.
-    fn parse_buffer(&mut self) {
+    /// Parses a line, updates the parser's state, and returns the next line's regex.
+    pub fn parse_line(&mut self, line: &str) -> String {
         match &self.line_type {
             LineType::Context => {
-                self.parse_context();
+                self.parse_context(line);
                 self.line_type = LineType::PlayIntroduction;
-            },
+            }
             LineType::PlayIntroduction => {
-                self.parse_play_introduction();
-
-                // if the play type is not `GameAdvisory`, then we need to parse the play information
+                self.parse_play_introduction(line);
+                if self.debug {
+                    println!("play_type: {:?}", self.game_builder.play_builder.play_type);
+                }
                 if self.game_builder.play_builder.play_type.unwrap() != PlayType::GameAdvisory {
                     self.line_type = LineType::PlayInformation;
                 }
-            },
+            }
             LineType::PlayInformation => {
-                self.parse_play_information();
+                self.parse_play_information(line);
                 self.line_type = LineType::PlayIntroduction;
-            },
-        }
-    }
-
-    /// Parses a character and returns the result.
-    fn parse_char(&mut self, c: char) -> ParseResult {
-        if self.debug {
-            println!("[parser] parsing char: {c:?}");
-        }
-
-        if c == '\n' {
-            self.parse_buffer();
-            self.line_buffer.clear();
-            self.refresh_regex();
-            self.derivative = None;
-
-            if self.debug {
-                println!("[parser] parsed line successfully");
-                println!("[parser] new line type: {:?}", self.line_type);
-                println!("[parser] new regex: {:?}", self.regex.as_ref().unwrap().to_string());
-            }
-
-            return ParseResult::SuccessLineComplete(self.regex.as_ref().unwrap().to_string());
-        }
-
-        let regex = if let Some(derivative) = &self.derivative {
-            derivative.derivative(c)
-        } else {
-            self.regex.as_ref().unwrap().derivative(c)
-        };
-
-        if regex == Regex::Empty {
-            return ParseResult::Failure;
-        }
-        self.line_buffer.push(c);
-
-        self.derivative = Some(regex);
-
-        ParseResult::SuccessStillParsingLine
-    }
-
-    pub fn parse_string(&mut self, s: &str) -> ParseResult {
-        let mut result = ParseResult::SuccessStillParsingLine;
-        for c in s.chars() {
-            result = self.parse_char(c);
-            if result == ParseResult::Failure {
-                return ParseResult::Failure;
             }
         }
-        result
+
+        self.generate_regex()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use game::Play;
-    use indicatif::ProgressBar;
-
-    #[test]
-    fn parse_single_char() {
-        let mut parser = Parser::new(true);
-        assert_eq!(parser.parse_string("{"), ParseResult::SuccessStillParsingLine);
-    }
-
-    #[test]
-    fn parse_multiple_chars() {
-        let mut parser = Parser::new(true);
-        assert_eq!(parser.parse_string("{ \"game_pk\":"), ParseResult::SuccessStillParsingLine);
-    }
+    use game::{Context, Weather, Team, Player, Play};
 
     #[test]
     fn parse_context() {
         let mut parser = Parser::new(true);
-        
-        let result = parser.parse_string("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
-        assert!(matches!(result, ParseResult::SuccessLineComplete(_)));
+
+        let _ = parser.parse_line("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
         assert_eq!(parser.line_type, LineType::PlayIntroduction);
+        assert_eq!(parser.game_builder.context.unwrap(), Context {
+            game_pk: 123456,
+            date: "2024-04-24".to_string(),
+            venue_name: "Test Stadium".to_string(),
+            weather: Weather { condition: "Sunny".to_string(), temperature: 70, wind_speed: 10 },
+            home_team: Team { id: 1, players: vec![Player { position: "PITCHER".to_string(), name: "John Doe".to_string() }] },
+            away_team: Team { id: 2, players: vec![Player { position: "CATCHER".to_string(), name: "Jane Doe".to_string() }] },
+        });
     }
 
     #[test]
     fn parse_play_introduction() {
         let mut parser = Parser::new(true);
 
-        // have to parse the context first
-        let result = parser.parse_string("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
-        assert!(matches!(result, ParseResult::SuccessLineComplete(_)));
+        let _ = parser.parse_line("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
         assert_eq!(parser.line_type, LineType::PlayIntroduction);
 
-        // then parse the play introduction
-        let result = parser.parse_string("{ \"inning\": { \"number\": 1, \"top\": true }, \"type\": \"Groundout\" }\n");
-        assert!(matches!(result, ParseResult::SuccessLineComplete(_)));
+        let _ = parser.parse_line("{ \"inning\": { \"number\": 1, \"top\": true }, \"type\": \"Groundout\" }\n");
         assert_eq!(parser.line_type, LineType::PlayInformation);
         assert_eq!(parser.game_builder.play_builder.inning.unwrap(), Inning { number: 1, top: true });
         assert_eq!(parser.game_builder.play_builder.play_type.unwrap(), PlayType::Groundout);
@@ -530,21 +453,15 @@ mod tests {
     fn parse_play_information() {
         let mut parser = Parser::new(true);
 
-        // have to parse the context first
-        let result = parser.parse_string("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
-        assert!(matches!(result, ParseResult::SuccessLineComplete(_)));
+        let _ = parser.parse_line("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
         assert_eq!(parser.line_type, LineType::PlayIntroduction);
 
-        // then parse the play introduction
-        let result = parser.parse_string("{ \"inning\": { \"number\": 1, \"top\": true }, \"type\": \"Groundout\" }\n");
-        assert!(matches!(result, ParseResult::SuccessLineComplete(_)));
+        let _ = parser.parse_line("{ \"inning\": { \"number\": 1, \"top\": true }, \"type\": \"Groundout\" }\n");
         assert_eq!(parser.line_type, LineType::PlayInformation);
         assert_eq!(parser.game_builder.play_builder.inning.unwrap(), Inning { number: 1, top: true });
         assert_eq!(parser.game_builder.play_builder.play_type.unwrap(), PlayType::Groundout);
 
-        // then parse the play information
-        let result = parser.parse_string("{ \"batter\": \"Jane Doe\", \"pitcher\": \"John Doe\", \"fielders\": [\"John Doe\"], \"movements\": [{ \"runner\": \"Jane Doe\", \"start_base\": \"1\", \"end_base\": \"2\", \"is_out\": false }] }\n");
-        assert!(matches!(result, ParseResult::SuccessLineComplete(_)));
+        let _ = parser.parse_line("{ \"batter\": \"Jane Doe\", \"pitcher\": \"John Doe\", \"fielders\": [\"John Doe\"], \"movements\": [{ \"runner\": \"Jane Doe\", \"start_base\": \"home\", \"end_base\": \"1\", \"is_out\": false }] }\n");
         assert_eq!(parser.line_type, LineType::PlayIntroduction);
         assert_eq!(parser.game_builder.plays.len(), 1);
         assert_eq!(parser.game_builder.plays[0], Play::Groundout {
@@ -552,30 +469,19 @@ mod tests {
             batter: "Jane Doe".to_string(),
             pitcher: "John Doe".to_string(),
             fielders: vec!["John Doe".to_string()],
-            movements: vec![Movement {
-                runner: "Jane Doe".to_string(),
-                start_base: "1".to_string(),
-                end_base: "2".to_string(),
-                is_out: false,
-            }],
+            movements: vec![Movement { runner: "Jane Doe".to_string(), start_base: "home".to_string(), end_base: "1".to_string(), is_out: false }],
         });
     }
 
     #[test]
-    fn parse_game_advisory() {
+    fn parse_game_advisory_does_not_expect_play_information() {
         let mut parser = Parser::new(true);
 
-        // have to parse the context first
-        let result = parser.parse_string("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
-        assert!(matches!(result, ParseResult::SuccessLineComplete(_)));
+        let _ = parser.parse_line("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
         assert_eq!(parser.line_type, LineType::PlayIntroduction);
-        
-        // then parse the play introduction
-        let result = parser.parse_string("{ \"inning\": { \"number\": 1, \"top\": true }, \"type\": \"Game Advisory\" }\n");
-        assert!(matches!(result, ParseResult::SuccessLineComplete(_)));
-        assert_eq!(parser.line_type, LineType::PlayIntroduction); // we shouldn't be expecting play information
-        assert_eq!(parser.game_builder.play_builder.inning.unwrap(), Inning { number: 1, top: true });
-        assert_eq!(parser.game_builder.play_builder.play_type.unwrap(), PlayType::GameAdvisory);
+
+        let _ = parser.parse_line("{ \"inning\": { \"number\": 1, \"top\": true }, \"type\": \"Game Advisory\" }\n");
+        assert_eq!(parser.line_type, LineType::PlayIntroduction);
     }
 
     #[test]
@@ -583,48 +489,10 @@ mod tests {
         let mut parser = Parser::new(true);
 
         let game = include_str!("../test_data/748236.jsonl");
-
-        let mut result = ParseResult::SuccessStillParsingLine;
-        let pb = ProgressBar::new(game.len() as u64);
-        for c in game.chars() {
-            result = parser.parse_char(c);
-            if result == ParseResult::Failure {
-                panic!("Failed to parse character: {c:?}");
-            }
-            pb.inc(1);
+        for line in game.lines() {
+            parser.parse_line(line);
         }
-        pb.finish();
 
-        assert!(matches!(result, ParseResult::SuccessLineComplete(_)));
-    }
-
-    #[test]
-    fn parse_invalid_input_simple() {
-        let mut parser = Parser::new(true);
-
-        let result = parser.parse_string("invalid input");
-        assert_eq!(result, ParseResult::Failure);
-    }
-
-    #[test]
-    fn parse_invalid_input_context() {
-        let mut parser = Parser::new(true);
-
-        let result = parser.parse_string("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHE\", \"name\": \"Jane Doe\" }] } }\n");
-        assert_eq!(result, ParseResult::Failure);
-    }
-
-    #[test]
-    fn parse_invalid_input_play_introduction() {
-        let mut parser = Parser::new(true);
-
-        // have to parse the context first
-        let result = parser.parse_string("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
-        assert!(matches!(result, ParseResult::SuccessLineComplete(_)));
-        assert_eq!(parser.line_type, LineType::PlayIntroduction);
-
-        // then parse the play introduction
-        let result = parser.parse_string("{ \"inning\": { \"number\": 1, \"top\": true }, \"type\": \"Invalid Play Type\" }\n");
-        assert_eq!(result, ParseResult::Failure);
+        assert_eq!(parser.game_builder.plays.len(), 78);
     }
 }
