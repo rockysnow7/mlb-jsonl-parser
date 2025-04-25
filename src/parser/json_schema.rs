@@ -2,6 +2,10 @@ pub trait ToRegex {
     fn to_regex(&self) -> String;
 }
 
+pub trait ToGBNF {
+    fn to_gbnf(&self, num_names: usize) -> Vec<String>;
+}
+
 pub struct KeyValueType {
     key: String,
     value: Box<JsonType>,
@@ -45,7 +49,11 @@ impl JsonType {
     }
 
     pub fn integer() -> Self {
-        Self::integer_with_regex(r"\d+")
+        Self::integer_with_regex(r"[1-9]\d+")
+    }
+
+    pub fn integer_max_digits(max_digits: usize) -> Self {
+        Self::integer_with_regex(&format!(r"[1-9]\d{{0,{}}}", max_digits - 1))
     }
 
     pub fn string_with_regex(regex: &str) -> Self {

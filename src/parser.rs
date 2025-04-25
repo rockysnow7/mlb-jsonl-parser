@@ -3,7 +3,7 @@ mod json_schema;
 
 use game::{Context, GameBuilder, Inning, Movement, PlayType};
 use json_schema::{JsonType, KeyValueType, ToRegex};
-use rzozowski::Regex;
+use pyo3::{pyclass, pymethods, PyResult};
 use serde::Deserialize;
 use strum::IntoEnumIterator;
 
@@ -20,11 +20,11 @@ fn context_section_weather_json() -> KeyValueType {
             ),
             JsonType::key_value(
                 "temperature",
-                JsonType::integer_with_regex(r"\d{1,3}"),
+                JsonType::integer_max_digits(3),
             ),
             JsonType::key_value(
                 "wind_speed",
-                JsonType::integer_with_regex(r"\d{1,3}"),
+                JsonType::integer_max_digits(3),
             ),
         ]),
     )
@@ -73,7 +73,7 @@ fn context_section_team_json() -> JsonType {
     JsonType::Object(vec![
         JsonType::key_value(
             "id",
-            JsonType::integer(),
+            JsonType::integer_max_digits(3),
         ),
         JsonType::key_value(
             "players",
@@ -86,7 +86,7 @@ fn context_section_team_json() -> JsonType {
 fn context_section_json() -> JsonType {
     let game_pk = JsonType::key_value(
         "game_pk",
-        JsonType::integer_with_regex(r"\d{6}"),
+        JsonType::integer_max_digits(6),
     );
     let date = JsonType::key_value(
         "date",
@@ -119,7 +119,7 @@ fn context_section_json() -> JsonType {
 /// The JSON schema for a play introduction.
 fn play_introduction_json() -> JsonType {
     let inning = JsonType::key_value("inning", JsonType::object(vec![
-        JsonType::key_value("number", JsonType::integer()),
+        JsonType::key_value("number", JsonType::integer_max_digits(3)),
         JsonType::key_value("top", JsonType::boolean()),
     ]));
     let play_type = JsonType::key_value(
@@ -127,7 +127,7 @@ fn play_introduction_json() -> JsonType {
         JsonType::string_with_regex(&PlayType::iter().map(|play_type| play_type.to_string()).collect::<Vec<_>>().join("|")),
     );
 
-    JsonType::Object(vec![
+    JsonType::object(vec![
         inning,
         play_type,
     ])
@@ -177,6 +177,7 @@ struct PlayInformation {
 }
 
 /// A streaming parser for the format described in `FORMAT.md`.
+#[pyclass]
 pub struct Parser {
     /// Whether to print debug information.
     debug: bool,
@@ -187,18 +188,9 @@ pub struct Parser {
 }
 
 impl Parser {
-    /// Creates a new parser. If `debug` is true, debug information will be printed during parsing.
-    pub fn new(debug: bool) -> Self {
-        Self {
-            debug,
-            line_type: LineType::Context,
-            game_builder: GameBuilder::new(),
-        }
-    }
-
     /// The JSON schema for a `movement` object.
     fn movement_json(&self) -> JsonType {
-        JsonType::Object(vec![
+        JsonType::object(vec![
             JsonType::key_value("runner", JsonType::string_with_regex(&format!("{UNICODE_WORD_CHAR}+"))),
             JsonType::key_value("start_base", JsonType::string_with_regex(r"home|1|2|3|4")),
             JsonType::key_value("end_base", JsonType::string_with_regex(r"home|1|2|3|4")),
@@ -334,15 +326,6 @@ impl Parser {
         }
     }
 
-    /// Generates the regex for the next line to be parsed.
-    fn generate_regex(&self) -> String {
-        match &self.line_type {
-            LineType::Context => context_section_json().to_regex(),
-            LineType::PlayIntroduction => play_introduction_json().to_regex(),
-            LineType::PlayInformation => self.play_information_json_for_play_type(&self.game_builder.play_builder.play_type.unwrap()).to_regex(),
-        }
-    }
-
     /// Parses the given line as a `Context` object.
     fn parse_context(&mut self, line: &str) {
         let context: Context = serde_json::from_str(line).unwrap();
@@ -388,9 +371,31 @@ impl Parser {
         let play = self.game_builder.play_builder.build();
         self.game_builder.add_play(play);
     }
+}
+
+#[pymethods]
+impl Parser {
+    /// Creates a new parser. If `debug` is true, debug information will be printed during parsing.
+    #[new]
+    pub fn new(debug: bool) -> Self {
+        Self {
+            debug,
+            line_type: LineType::Context,
+            game_builder: GameBuilder::new(),
+        }
+    }
+
+    /// Generates the regex for the next line to be parsed.
+    fn generate_regex(&self) -> String {
+        match &self.line_type {
+            LineType::Context => context_section_json().to_regex(),
+            LineType::PlayIntroduction => play_introduction_json().to_regex(),
+            LineType::PlayInformation => self.play_information_json_for_play_type(&self.game_builder.play_builder.play_type.unwrap()).to_regex(),
+        }
+    }
 
     /// Parses a line, updates the parser's state, and returns the next line's regex.
-    pub fn parse_line(&mut self, line: &str) -> String {
+    pub fn parse_line(&mut self, line: &str) -> PyResult<String> {
         match &self.line_type {
             LineType::Context => {
                 self.parse_context(line);
@@ -411,7 +416,7 @@ impl Parser {
             }
         }
 
-        self.generate_regex()
+        Ok(self.generate_regex())
     }
 }
 
@@ -490,7 +495,7 @@ mod tests {
 
         let game = include_str!("../test_data/748236.jsonl");
         for line in game.lines() {
-            parser.parse_line(line);
+            let _ = parser.parse_line(line);
         }
 
         assert_eq!(parser.game_builder.plays.len(), 78);
