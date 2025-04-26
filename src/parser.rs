@@ -187,9 +187,9 @@ impl Parser {
     /// Generates the JSON schema for a given `Movement` object.
     fn movement_json(&self, movement: &Movement) -> JsonType {
         JsonType::object(vec![
-            JsonType::key_value("runner", JsonType::string_with_regex(movement.runner.as_str())),
-            JsonType::key_value("start_base", JsonType::string_with_regex(movement.start_base.to_string().as_str())),
-            JsonType::key_value("end_base", JsonType::string_with_regex(movement.end_base.to_string().as_str())),
+            JsonType::key_value("runner", JsonType::string_with_regex(&movement.runner.replace(".", "\\."))),
+            JsonType::key_value("start_base", JsonType::string_with_regex(&movement.start_base.to_string())),
+            JsonType::key_value("end_base", JsonType::string_with_regex(&movement.end_base.to_string())),
             JsonType::key_value("is_out", JsonType::boolean_from(movement.is_out)),
         ])
     }
