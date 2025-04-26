@@ -42,6 +42,12 @@ impl JsonType {
         }
     }
 
+    pub fn boolean_from(b: bool) -> Self {
+        Self::Boolean {
+            regex: if b { "true" } else { "false" }.to_string(),
+        }
+    }
+
     pub fn integer_with_regex(regex: &str) -> Self {
         Self::Integer {
             regex: format!("({regex})"),

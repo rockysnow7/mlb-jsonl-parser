@@ -192,6 +192,28 @@ pub enum Base {
     Third,
 }
 
+impl ToString for Base {
+    fn to_string(&self) -> String {
+        match self {
+            Base::Home => "home",
+            Base::First => "1",
+            Base::Second => "2",
+            Base::Third => "3",
+        }.to_string()
+    }
+}
+
+impl Base {
+    pub fn valid_to_bases(&self) -> Vec<Self> {
+        match self {
+            Self::Home => vec![Self::First, Self::Second, Self::Third, Self::Home],
+            Self::First => vec![Self::Second, Self::Third, Self::Home],
+            Self::Second => vec![Self::Third, Self::Home],
+            Self::Third => vec![Self::Home],
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 #[pyclass(get_all)]
@@ -1009,8 +1031,6 @@ pub struct GameBuilder {
     pub play_builder: PlayBuilder,
     /// The name of the runner on each base.
     pub runner_positions: HashMap<Base, Option<String>>,
-    pub home_team_runs: usize,
-    pub away_team_runs: usize,
 }
 
 impl GameBuilder {
@@ -1024,8 +1044,6 @@ impl GameBuilder {
                 (Base::Second, None),
                 (Base::Third, None),
             ]),
-            home_team_runs: 0,
-            away_team_runs: 0,
         }
     }
 
@@ -1070,14 +1088,6 @@ impl GameBuilder {
                 if movement.start_base != Base::Home {
                     runner_positions.insert(movement.start_base, None);
                 }
-
-                // Update score
-                let home_players = self.home_team_player_names().unwrap();
-                if home_players.contains(&movement.runner) {
-                    self.home_team_runs += 1;
-                } else {
-                    self.away_team_runs += 1;
-                }
             } else {
                 // Normal base movement
                 runner_positions.insert(movement.end_base, Some(movement.runner.clone()));
@@ -1109,6 +1119,34 @@ impl GameBuilder {
     pub fn away_team_player_names(&self) -> Option<Vec<String>> {
         if let Some(context) = &self.context {
             Some(context.away_team.players.iter().map(|p| p.name.clone()).collect::<Vec<_>>())
+        } else {
+            None
+        }
+    }
+
+    pub fn home_team_pinch_runner_names(&self) -> Option<Vec<String>> {
+        if let Some(context) = &self.context {
+            Some(context.home_team.players.iter().filter_map(|p| {
+                if p.position == "PINCH_RUNNER" {
+                    Some(p.name.clone())
+                } else {
+                    None
+                }
+            }).collect::<Vec<_>>())
+        } else {
+            None
+        }
+    }
+
+    pub fn away_team_pinch_runner_names(&self) -> Option<Vec<String>> {
+        if let Some(context) = &self.context {
+            Some(context.away_team.players.iter().filter_map(|p| {
+                if p.position == "PINCH_RUNNER" {
+                    Some(p.name.clone())
+                } else {
+                    None
+                }
+            }).collect::<Vec<_>>())
         } else {
             None
         }
@@ -1260,61 +1298,5 @@ mod tests {
             (Base::Second, None),
             (Base::Third, None),
         ]));
-    }
-
-    #[test]
-    fn game_builder_process_movements_with_scoring() {
-        let mut game_builder = GameBuilder::new();
-        game_builder.add_context(Context {
-            game_pk: 1,
-            date: "2021-01-01".to_string(),
-            venue_name: "Stadium".to_string(),
-            weather: Weather {
-                condition: "Sunny".to_string(),
-                temperature: 70,
-                wind_speed: 10,
-            },
-            home_team: Team {
-                id: 1,
-                players: vec![
-                    Player { name: "Person A".to_string(), position: "Pitcher".to_string() },
-                    Player { name: "Person C".to_string(), position: "Catcher".to_string() },
-                ],
-            },
-            away_team: Team {
-                id: 2,
-                players: vec![Player { name: "Person B".to_string(), position: "Pitcher".to_string() }],
-            },
-        });
-
-        let play = Play::HomeRun {
-            inning: Inning { number: 1, top: true },
-            batter: "Person A".to_string(),
-            pitcher: "Person B".to_string(),
-            movements: vec![
-                Movement {
-                    runner: "Person A".to_string(),
-                    start_base: Base::Home,
-                    end_base: Base::Home,
-                    is_out: false,
-                },
-                Movement {
-                    runner: "Person C".to_string(),
-                    start_base: Base::First,
-                    end_base: Base::Home,
-                    is_out: false,
-                },
-            ],
-        };
-
-        game_builder.add_play(play);
-
-        assert_eq!(game_builder.runner_positions, HashMap::from([
-            (Base::First, None),
-            (Base::Second, None),
-            (Base::Third, None),
-        ]));
-        assert_eq!(game_builder.home_team_runs, 2);
-        assert_eq!(game_builder.away_team_runs, 0);
     }
 }

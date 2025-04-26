@@ -142,6 +142,8 @@ enum LineType {
     PlayIntroduction,
     /// A line that contains the rest of the information for the play introduced in the previous line.
     PlayInformation,
+    /// A line that contains the movements for the play introduced in the previous lines.
+    PlayMovements,
 }
 
 /// The contents of a play introduction.
@@ -162,7 +164,12 @@ struct PlayInformation {
     fielders: Option<Vec<String>>,
     runner: Option<String>,
     scoring_runner: Option<String>,
-    movements: Option<Vec<Movement>>,
+}
+
+/// The contents of a play movements object.
+#[derive(Debug, Deserialize)]
+struct PlayMovements {
+    movements: Vec<Movement>,
 }
 
 /// A streaming parser for the format described in `FORMAT.md`.
@@ -177,13 +184,102 @@ pub struct Parser {
 }
 
 impl Parser {
-    /// The JSON schema for a `movement` object.
-    fn movement_json(&self) -> JsonType {
+    /// Generates the JSON schema for a given `Movement` object.
+    fn movement_json(&self, movement: &Movement) -> JsonType {
         JsonType::object(vec![
-            JsonType::key_value("runner", JsonType::string_with_regex(&format!("{UNICODE_WORD_CHAR}+"))),
-            JsonType::key_value("start_base", JsonType::string_with_regex(r"home|1|2|3")),
-            JsonType::key_value("end_base", JsonType::string_with_regex(r"home|1|2|3")),
-            JsonType::key_value("is_out", JsonType::boolean()),
+            JsonType::key_value("runner", JsonType::string_with_regex(movement.runner.as_str())),
+            JsonType::key_value("start_base", JsonType::string_with_regex(movement.start_base.to_string().as_str())),
+            JsonType::key_value("end_base", JsonType::string_with_regex(movement.end_base.to_string().as_str())),
+            JsonType::key_value("is_out", JsonType::boolean_from(movement.is_out)),
+        ])
+    }
+
+    /// The JSON schema for an array of valid movement objects.
+    fn valid_movements_json(&self) -> JsonType {
+        let runner_positions = self.game_builder.runner_positions.clone();
+        let players_bases = runner_positions.iter().filter_map(|(base, player)| {
+            if let Some(player) = player {
+                Some((player, base))
+            } else {
+                None
+            }
+        }).collect::<Vec<_>>();
+
+        let mut valid_movements: Vec<Movement> = Vec::new();
+        // add the runners' movements
+        for (player, base) in players_bases {
+            let valid_to_bases = base.valid_to_bases();
+            for to_base in valid_to_bases {
+                valid_movements.push(Movement {
+                    runner: player.clone(),
+                    start_base: *base,
+                    end_base: to_base,
+                    is_out: false,
+                });
+                valid_movements.push(Movement {
+                    runner: player.clone(),
+                    start_base: *base,
+                    end_base: to_base,
+                    is_out: true,
+                });
+            }
+
+            valid_movements.push(Movement {
+                runner: player.clone(),
+                start_base: *base,
+                end_base: *base,
+                is_out: true,
+            });
+        }
+
+        // add the batter's movements
+        if let Some(batter) = &self.game_builder.play_builder.batter {
+            let valid_to_bases = Base::Home.valid_to_bases();
+            for to_base in valid_to_bases {
+                valid_movements.push(Movement {
+                    runner: batter.clone(),
+                    start_base: Base::Home,
+                    end_base: to_base,
+                    is_out: false,
+                });
+                valid_movements.push(Movement {
+                    runner: batter.clone(),
+                    start_base: Base::Home,
+                    end_base: to_base,
+                    is_out: true,
+                });
+            }
+        }
+
+        // add pinch runners' movements
+        let runners_are_home_team = !self.game_builder.play_builder.inning.unwrap().top;
+        let pinch_runners = if runners_are_home_team {
+            self.game_builder.home_team_pinch_runner_names()
+        } else {
+            self.game_builder.away_team_pinch_runner_names()
+        }.unwrap();
+
+        let pinch_movements = valid_movements.iter().map(|movement| pinch_runners.iter().map(|runner| Movement {
+            runner: runner.clone(),
+            start_base: movement.start_base,
+            end_base: movement.end_base,
+            is_out: movement.is_out,
+        })).flatten().collect::<Vec<_>>();
+        valid_movements.extend(pinch_movements);
+
+        let valid_movements_json = valid_movements.iter().map(|movement| self.movement_json(movement)).collect::<Vec<_>>();
+        let valid_movements_json = JsonType::array(JsonType::Union(valid_movements_json));
+
+        valid_movements_json
+    }
+
+    /// The JSON schema for a movements line object. It is technically too broad, but it will do for now.
+    fn movements_json(&self) -> JsonType {
+        JsonType::object(vec![
+            JsonType::key_value(
+                "movements",
+                self.valid_movements_json(),
+            ),
         ])
     }
 
@@ -257,9 +353,6 @@ impl Parser {
             } else {
                 &away_team_player_names_regex
             })));
-        }
-        if needs_movements {
-            json_object.push(JsonType::key_value("movements", JsonType::array(self.movement_json())));
         }
 
         JsonType::object(json_object)
@@ -375,9 +468,17 @@ impl Parser {
         if let Some(scoring_runner) = play_information.scoring_runner {
             self.game_builder.play_builder.set_scoring_runner(scoring_runner);
         }
-        if let Some(movements) = play_information.movements {
-            self.game_builder.play_builder.set_movements(movements);
+
+        if self.game_builder.play_builder.play_type.unwrap() == PlayType::GameAdvisory {
+            let play = self.game_builder.play_builder.build();
+            self.add_play(play);
         }
+    }
+
+    /// Parses the given line as a `PlayMovements` object.
+    fn parse_play_movements(&mut self, line: &str) {
+        let play_movements: PlayMovements = serde_json::from_str(line).unwrap();
+        self.game_builder.play_builder.set_movements(play_movements.movements);
 
         let play = self.game_builder.play_builder.build();
         self.add_play(play);
@@ -402,6 +503,7 @@ impl Parser {
             LineType::Context => context_section_json().to_regex(),
             LineType::PlayIntroduction => play_introduction_json().to_regex(),
             LineType::PlayInformation => self.play_information_json_for_play_type(&self.game_builder.play_builder.play_type.unwrap()).to_regex(),
+            LineType::PlayMovements => self.movements_json().to_regex(),
         }
     }
 
@@ -417,12 +519,18 @@ impl Parser {
                 if self.debug {
                     println!("play_type: {:?}", self.game_builder.play_builder.play_type);
                 }
-                if self.game_builder.play_builder.play_type.unwrap() != PlayType::GameAdvisory {
-                    self.line_type = LineType::PlayInformation;
-                }
+                self.line_type = match self.game_builder.play_builder.play_type.unwrap() {
+                    PlayType::GameAdvisory => LineType::PlayIntroduction,
+                    PlayType::Ejection => LineType::PlayMovements,
+                    _ => LineType::PlayInformation,
+                };
             }
             LineType::PlayInformation => {
                 self.parse_play_information(line);
+                self.line_type = LineType::PlayMovements;
+            }
+            LineType::PlayMovements => {
+                self.parse_play_movements(line);
                 self.line_type = LineType::PlayIntroduction;
             }
         }
@@ -441,6 +549,8 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use game::{Context, Weather, Team, Player, Play, Base};
 
@@ -485,20 +595,12 @@ mod tests {
         assert_eq!(parser.game_builder.play_builder.inning.unwrap(), Inning { number: 1, top: true });
         assert_eq!(parser.game_builder.play_builder.play_type.unwrap(), PlayType::Groundout);
 
-        let _ = parser.parse_line("{ \"batter\": \"Jane Doe\", \"pitcher\": \"John Doe\", \"fielders\": [\"John Doe\"], \"movements\": [{ \"runner\": \"Jane Doe\", \"start_base\": \"home\", \"end_base\": \"1\", \"is_out\": false }] }\n");
-        assert_eq!(parser.line_type, LineType::PlayIntroduction);
-        assert_eq!(parser.game_builder.plays.len(), 1);
-        assert_eq!(parser.game_builder.plays[0], Play::Groundout {
-            inning: Inning { number: 1, top: true },
-            batter: "Jane Doe".to_string(),
-            pitcher: "John Doe".to_string(),
-            fielders: vec!["John Doe".to_string()],
-            movements: vec![Movement { runner: "Jane Doe".to_string(), start_base: Base::Home, end_base: Base::First, is_out: false }],
-        });
+        let _ = parser.parse_line("{ \"batter\": \"Jane Doe\", \"pitcher\": \"John Doe\", \"fielders\": [\"John Doe\"] }\n");
+        assert_eq!(parser.line_type, LineType::PlayMovements);
     }
 
     #[test]
-    fn parse_game_advisory_does_not_expect_play_information() {
+    fn parse_game_advisory_does_not_expect_play_information_nor_movements() {
         let mut parser = Parser::new(true);
 
         let _ = parser.parse_line("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
@@ -506,6 +608,51 @@ mod tests {
 
         let _ = parser.parse_line("{ \"inning\": { \"number\": 1, \"top\": true }, \"type\": \"Game Advisory\" }\n");
         assert_eq!(parser.line_type, LineType::PlayIntroduction);
+    }
+
+    #[test]
+    fn parse_ejection_does_not_expect_play_information_but_does_expect_movements() {
+        let mut parser = Parser::new(true);
+
+        let _ = parser.parse_line("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
+        assert_eq!(parser.line_type, LineType::PlayIntroduction);
+
+        let _ = parser.parse_line("{ \"inning\": { \"number\": 1, \"top\": true }, \"type\": \"Ejection\" }\n");
+        assert_eq!(parser.line_type, LineType::PlayMovements);
+    }
+
+    #[test]
+    fn parse_play_movements() {
+        let mut parser = Parser::new(true);
+
+        let _ = parser.parse_line("{ \"game_pk\": 123456, \"date\": \"2024-04-24\", \"venue_name\": \"Test Stadium\", \"weather\": { \"condition\": \"Sunny\", \"temperature\": 70, \"wind_speed\": 10 }, \"home_team\": { \"id\": 1, \"players\": [{ \"position\": \"PITCHER\", \"name\": \"John Doe\" }] }, \"away_team\": { \"id\": 2, \"players\": [{ \"position\": \"CATCHER\", \"name\": \"Jane Doe\" }] } }\n");
+        assert_eq!(parser.line_type, LineType::PlayIntroduction);
+
+        let _ = parser.parse_line("{ \"inning\": { \"number\": 1, \"top\": true }, \"type\": \"Walk\" }\n");
+        assert_eq!(parser.line_type, LineType::PlayInformation);
+
+        let _ = parser.parse_line("{ \"batter\": \"Jane Doe\", \"pitcher\": \"John Doe\" }\n");
+        assert_eq!(parser.line_type, LineType::PlayMovements);
+
+        let _ = parser.parse_line("{ \"movements\": [{ \"runner\": \"Jane Doe\", \"start_base\": \"home\", \"end_base\": \"1\", \"is_out\": false }] }\n");
+        assert_eq!(parser.line_type, LineType::PlayIntroduction);
+        assert_eq!(parser.game_builder.plays.len(), 1);
+        assert_eq!(parser.game_builder.plays[0], Play::Walk {
+            inning: Inning { number: 1, top: true },
+            batter: "Jane Doe".to_string(),
+            pitcher: "John Doe".to_string(),
+            movements: vec![Movement {
+                runner: "Jane Doe".to_string(),
+                start_base: Base::Home,
+                end_base: Base::First,
+                is_out: false,
+            }],
+        });
+        assert_eq!(parser.game_builder.runner_positions, HashMap::from([
+            (Base::First, Some("Jane Doe".to_string())),
+            (Base::Second, None),
+            (Base::Third, None),
+        ]));
     }
 
     #[test]
