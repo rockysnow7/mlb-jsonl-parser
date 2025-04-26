@@ -1,4 +1,5 @@
 use pyo3::pyclass;
+use std::collections::HashMap;
 use strum::EnumIter;
 use serde::Deserialize;
 
@@ -171,7 +172,6 @@ pub struct Context {
     pub away_team: Team,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[pyclass(get_all)]
 pub struct Inning {
@@ -179,13 +179,26 @@ pub struct Inning {
     pub top: bool,
 }
 
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
+#[pyclass(get_all)]
+pub enum Base {
+    #[serde(rename = "home")]
+    Home,
+    #[serde(rename = "1")]
+    First,
+    #[serde(rename = "2")]
+    Second,
+    #[serde(rename = "3")]
+    Third,
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 #[pyclass(get_all)]
 pub struct Movement {
     pub runner: String,
-    pub start_base: String,
-    pub end_base: String,
+    pub start_base: Base,
+    pub end_base: Base,
     pub is_out: bool,
 }
 
@@ -319,7 +332,7 @@ pub enum Play {
     },
     Pickoff {
         inning: Inning,
-        base: String,
+        base: Base,
         fielders: Vec<String>,
         runner: String,
         movements: Vec<Movement>,
@@ -327,7 +340,7 @@ pub enum Play {
     #[serde(rename = "Pickoff Error")]
     PickoffError {
         inning: Inning,
-        base: String,
+        base: Base,
         fielders: Vec<String>,
         runner: String,
         movements: Vec<Movement>,
@@ -335,7 +348,7 @@ pub enum Play {
     #[serde(rename = "Caught Stealing")]
     CaughtStealing {
         inning: Inning,
-        base: String,
+        base: Base,
         fielders: Vec<String>,
         runner: String,
         movements: Vec<Movement>,
@@ -343,7 +356,7 @@ pub enum Play {
     #[serde(rename = "Pickoff Caught Stealing")]
     PickoffCaughtStealing {
         inning: Inning,
-        base: String,
+        base: Base,
         fielders: Vec<String>,
         runner: String,
         movements: Vec<Movement>,
@@ -458,7 +471,7 @@ pub enum Play {
     #[serde(rename = "Stolen Base")]
     StolenBase {
         inning: Inning,
-        base: String,
+        base: Base,
         runner: String,
         movements: Vec<Movement>,
     },
@@ -516,10 +529,61 @@ pub enum Play {
     },
 }
 
+impl Play {
+    pub fn get_movements(&self) -> Option<&Vec<Movement>> {
+        match self {
+            Self::GameAdvisory { .. } => None,
+            Self::Groundout { movements, .. }
+                | Self::BuntGroundout { movements, .. }
+                | Self::Strikeout { movements, .. }
+                | Self::Lineout { movements, .. }
+                | Self::BuntLineout { movements, .. }
+                | Self::Flyout { movements, .. }
+                | Self::PopOut { movements, .. }
+                | Self::BuntPopOut { movements, .. }
+                | Self::Forceout { movements, .. }
+                | Self::FieldersChoiceOut { movements, .. }
+                | Self::DoublePlay { movements, .. }
+                | Self::TriplePlay { movements, .. }
+                | Self::RunnerDoublePlay { movements, .. }
+                | Self::RunnerTriplePlay { movements, .. }
+                | Self::GroundedIntoDoublePlay { movements, .. }
+                | Self::StrikeoutDoublePlay { movements, .. }
+                | Self::Pickoff { movements, .. }
+                | Self::PickoffError { movements, .. }
+                | Self::CaughtStealing { movements, .. }
+                | Self::PickoffCaughtStealing { movements, .. }
+                | Self::WildPitch { movements, .. }
+                | Self::RunnerOut { movements, .. }
+                | Self::FieldOut { movements, .. }
+                | Self::BatterOut { movements, .. }
+                | Self::Balk { movements, .. }
+                | Self::PassedBall { movements, .. }
+                | Self::Error { movements, .. }
+                | Self::Single { movements, .. }
+                | Self::Double { movements, .. }
+                | Self::Triple { movements, .. }
+                | Self::HomeRun { movements, .. }
+                | Self::Walk { movements, .. }
+                | Self::IntentWalk { movements, .. }
+                | Self::HitByPitch { movements, .. }
+                | Self::FieldersChoice { movements, .. }
+                | Self::CatcherInterference { movements, .. }
+                | Self::StolenBase { movements, .. }
+                | Self::SacFly { movements, .. }
+                | Self::SacFlyDoublePlay { movements, .. }
+                | Self::SacBunt { movements, .. }
+                | Self::SacBuntDoublePlay { movements, .. }
+                | Self::FieldError { movements, .. }
+                | Self::Ejection { movements, .. } => Some(movements),
+        }
+    }
+}
+
 pub struct PlayBuilder {
     pub inning: Option<Inning>,
     pub play_type: Option<PlayType>,
-    pub base: Option<String>,
+    pub base: Option<Base>,
     pub batter: Option<String>,
     pub pitcher: Option<String>,
     pub catcher: Option<String>,
@@ -553,7 +617,7 @@ impl PlayBuilder {
         self.play_type = Some(play_type);
     }
 
-    pub fn set_base(&mut self, base: String) {
+    pub fn set_base(&mut self, base: Base) {
         self.base = Some(base);
     }
 
@@ -894,6 +958,10 @@ pub struct GameBuilder {
     pub context: Option<Context>,
     pub plays: Vec<Play>,
     pub play_builder: PlayBuilder,
+    /// The name of the runner on each base.
+    pub runner_positions: HashMap<Base, Option<String>>,
+    pub home_team_runs: usize,
+    pub away_team_runs: usize,
 }
 
 impl GameBuilder {
@@ -902,6 +970,13 @@ impl GameBuilder {
             context: None,
             plays: Vec::new(),
             play_builder: PlayBuilder::new(),
+            runner_positions: HashMap::from([
+                (Base::First, None),
+                (Base::Second, None),
+                (Base::Third, None),
+            ]),
+            home_team_runs: 0,
+            away_team_runs: 0,
         }
     }
 
@@ -914,7 +989,56 @@ impl GameBuilder {
     }
 
     pub fn add_play(&mut self, play: Play) {
+        if let Some(movements) = play.get_movements() {
+            self.process_movements(movements);
+        }
         self.plays.push(play);
+    }
+
+    pub fn process_movements(&mut self, movements: &Vec<Movement>) {
+        // Make a temporary copy to track changes during this processing
+        let mut runner_positions = self.runner_positions.clone();
+
+        // Process each movement in sequence
+        for movement in movements {
+            // Handle runner being out
+            if movement.is_out && movement.start_base != Base::Home {
+                runner_positions.insert(movement.start_base, None);
+                continue;
+            } 
+
+            // Handle scoring (runner reaching home)
+            if movement.end_base == Base::Home {
+                // Remove runner from previous base
+                if movement.start_base != Base::Home {
+                    runner_positions.insert(movement.start_base, None);
+                }
+
+                // Update score
+                let home_players = self.home_team_player_names().unwrap();
+                if home_players.contains(&movement.runner) {
+                    self.home_team_runs += 1;
+                } else {
+                    self.away_team_runs += 1;
+                }
+            } else {
+                // Normal base movement
+                runner_positions.insert(movement.end_base, Some(movement.runner.clone()));
+
+                // Clear the previous base if it was the same runner
+                if movement.start_base != Base::Home {
+                    // Only clear the base if the runner there matches the current runner
+                    if let Some(Some(runner)) = runner_positions.get(&movement.start_base) {
+                        if *runner == movement.runner {
+                            runner_positions.insert(movement.start_base, None);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update the game state with our processed movements
+        self.runner_positions = runner_positions;
     }
 
     pub fn home_team_player_names(&self) -> Option<Vec<String>> {
@@ -946,5 +1070,194 @@ impl GameBuilder {
             context: self.context.as_ref().unwrap().clone(),
             plays: self.plays.clone(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn game_builder_process_one_movement() {
+        let mut game_builder = GameBuilder::new();
+
+        let play = Play::Walk {
+            inning: Inning { number: 1, top: true },
+            batter: "Jane Doe".to_string(),
+            pitcher: "John Doe".to_string(),
+            movements: vec![Movement {
+                runner: "Jane Doe".to_string(),
+                start_base: Base::Home,
+                end_base: Base::First,
+                is_out: false,
+            }],
+        };
+
+        game_builder.add_play(play);
+
+        assert_eq!(game_builder.runner_positions, HashMap::from([
+            (Base::First, Some("Jane Doe".to_string())),
+            (Base::Second, None),
+            (Base::Third, None),
+        ]));
+    }
+
+    #[test]
+    fn game_builder_process_two_movements() {
+        let mut game_builder = GameBuilder::new();
+
+        let plays = vec![
+            Play::Walk {
+                inning: Inning { number: 1, top: true },
+                batter: "Person A".to_string(),
+                pitcher: "Person B".to_string(),
+                movements: vec![
+                    Movement {
+                        runner: "Person A".to_string(),
+                        start_base: Base::Home,
+                        end_base: Base::First,
+                        is_out: false,
+                    },
+                    Movement {
+                        runner: "Person B".to_string(),
+                        start_base: Base::First,
+                        end_base: Base::Second,
+                        is_out: false,
+                    },
+                ],
+            },
+        ];
+
+        for play in plays {
+            game_builder.add_play(play);
+        }
+
+        assert_eq!(game_builder.runner_positions, HashMap::from([
+            (Base::First, Some("Person A".to_string())),
+            (Base::Second, Some("Person B".to_string())),
+            (Base::Third, None),
+        ]));
+    }
+
+    #[test]
+    fn game_builder_process_multiple_plays_movements() {
+        let mut game_builder = GameBuilder::new();
+
+        let plays = vec![
+            Play::Walk {
+                inning: Inning { number: 1, top: true },
+                batter: "Person A".to_string(),
+                pitcher: "Person B".to_string(),
+                movements: vec![
+                    Movement {
+                        runner: "Person A".to_string(),
+                        start_base: Base::Home,
+                        end_base: Base::First,
+                        is_out: false,
+                    },
+                ],
+            },
+            Play::StolenBase {
+                inning: Inning { number: 1, top: true },
+                base: Base::First,
+                runner: "Person A".to_string(),
+                movements: vec![
+                    Movement {
+                        runner: "Person A".to_string(),
+                        start_base: Base::First,
+                        end_base: Base::Second,
+                        is_out: false,
+                    },
+                ],
+            },
+        ];
+
+        for play in plays {
+            game_builder.add_play(play);
+        }
+    }
+
+    #[test]
+    fn game_builder_process_movement_with_out() {
+        let mut game_builder = GameBuilder::new();
+
+        let play = Play::Groundout {
+            inning: Inning { number: 1, top: true },
+            batter: "Person A".to_string(),
+            pitcher: "Person B".to_string(),
+            fielders: vec!["Person C".to_string()],
+            movements: vec![
+                Movement {
+                    runner: "Person A".to_string(),
+                    start_base: Base::First,
+                    end_base: Base::Home,
+                    is_out: true,
+                },
+            ],
+        };
+
+        game_builder.add_play(play);
+
+        assert_eq!(game_builder.runner_positions, HashMap::from([
+            (Base::First, None),
+            (Base::Second, None),
+            (Base::Third, None),
+        ]));
+    }
+
+    #[test]
+    fn game_builder_process_movements_with_scoring() {
+        let mut game_builder = GameBuilder::new();
+        game_builder.add_context(Context {
+            game_pk: 1,
+            date: "2021-01-01".to_string(),
+            venue_name: "Stadium".to_string(),
+            weather: Weather {
+                condition: "Sunny".to_string(),
+                temperature: 70,
+                wind_speed: 10,
+            },
+            home_team: Team {
+                id: 1,
+                players: vec![
+                    Player { name: "Person A".to_string(), position: "Pitcher".to_string() },
+                    Player { name: "Person C".to_string(), position: "Catcher".to_string() },
+                ],
+            },
+            away_team: Team {
+                id: 2,
+                players: vec![Player { name: "Person B".to_string(), position: "Pitcher".to_string() }],
+            },
+        });
+
+        let play = Play::HomeRun {
+            inning: Inning { number: 1, top: true },
+            batter: "Person A".to_string(),
+            pitcher: "Person B".to_string(),
+            movements: vec![
+                Movement {
+                    runner: "Person A".to_string(),
+                    start_base: Base::Home,
+                    end_base: Base::Home,
+                    is_out: false,
+                },
+                Movement {
+                    runner: "Person C".to_string(),
+                    start_base: Base::First,
+                    end_base: Base::Home,
+                    is_out: false,
+                },
+            ],
+        };
+
+        game_builder.add_play(play);
+
+        assert_eq!(game_builder.runner_positions, HashMap::from([
+            (Base::First, None),
+            (Base::Second, None),
+            (Base::Third, None),
+        ]));
+        assert_eq!(game_builder.home_team_runs, 2);
+        assert_eq!(game_builder.away_team_runs, 0);
     }
 }

@@ -1,9 +1,9 @@
 mod game;
 mod json_schema;
 
-use game::{Context, GameBuilder, Inning, Movement, PlayType};
+use game::{Context, Game, GameBuilder, Inning, Movement, PlayType, Base};
 use json_schema::{JsonType, KeyValueType, ToRegex};
-use pyo3::{pyclass, pymethods, PyResult};
+use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
 use serde::Deserialize;
 use strum::IntoEnumIterator;
 
@@ -144,17 +144,6 @@ enum LineType {
     PlayInformation,
 }
 
-/// The result of parsing a character.
-#[derive(Debug, PartialEq, Eq)]
-pub enum ParseResult {
-    /// The character was parsed successfully but the line is not yet complete.
-    SuccessStillParsingLine,
-    /// The character was parsed successfully and the line is complete. The regex of the next line is provided.
-    SuccessLineComplete(String),
-    /// The character was not parsed successfully.
-    Failure,
-}
-
 /// The contents of a play introduction.
 #[derive(Debug, Deserialize)]
 struct PlayIntroduction {
@@ -166,7 +155,7 @@ struct PlayIntroduction {
 /// The contents of a play information object.
 #[derive(Debug, Deserialize)]
 struct PlayInformation {
-    base: Option<String>,
+    base: Option<Base>,
     batter: Option<String>,
     pitcher: Option<String>,
     catcher: Option<String>,
@@ -192,8 +181,8 @@ impl Parser {
     fn movement_json(&self) -> JsonType {
         JsonType::object(vec![
             JsonType::key_value("runner", JsonType::string_with_regex(&format!("{UNICODE_WORD_CHAR}+"))),
-            JsonType::key_value("start_base", JsonType::string_with_regex(r"home|1|2|3|4")),
-            JsonType::key_value("end_base", JsonType::string_with_regex(r"home|1|2|3|4")),
+            JsonType::key_value("start_base", JsonType::string_with_regex(r"home|1|2|3")),
+            JsonType::key_value("end_base", JsonType::string_with_regex(r"home|1|2|3")),
             JsonType::key_value("is_out", JsonType::boolean()),
         ])
     }
@@ -225,7 +214,7 @@ impl Parser {
         let mut json_object = Vec::new();
 
         if needs_base {
-            json_object.push(JsonType::key_value("base", JsonType::string_with_regex(r"home|1|2|3|4")));
+            json_object.push(JsonType::key_value("base", JsonType::string_with_regex(r"home|1|2|3")));
         }
         if needs_batter {
             json_object.push(JsonType::key_value("batter", JsonType::string_with_regex(if home_team_batting {
@@ -337,10 +326,18 @@ impl Parser {
         let play_introduction: PlayIntroduction = serde_json::from_str(line).unwrap();
         self.game_builder.play_builder.inning = Some(play_introduction.inning);
         self.game_builder.play_builder.play_type = Some(play_introduction.play_type);
+
+        if self.game_builder.play_builder.play_type.unwrap() == PlayType::GameAdvisory {
+            let play = self.game_builder.play_builder.build();
+            self.game_builder.add_play(play);
+        }
     }
 
     /// Parses the given line as a `PlayInformation` object.
     fn parse_play_information(&mut self, line: &str) {
+        if self.debug {
+            println!("play_information: {line:?}");
+        }
         let play_information: PlayInformation = serde_json::from_str(line).unwrap();
 
         if let Some(base) = play_information.base {
@@ -418,12 +415,20 @@ impl Parser {
 
         Ok(self.generate_regex())
     }
+
+    /// Builds and returns the game.
+    pub fn finish(&self) -> PyResult<Game> {
+        match self.game_builder.build() {
+            Ok(game) => Ok(game),
+            Err(e) => Err(PyValueError::new_err(e)),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use game::{Context, Weather, Team, Player, Play};
+    use game::{Context, Weather, Team, Player, Play, Base};
 
     #[test]
     fn parse_context() {
@@ -474,7 +479,7 @@ mod tests {
             batter: "Jane Doe".to_string(),
             pitcher: "John Doe".to_string(),
             fielders: vec!["John Doe".to_string()],
-            movements: vec![Movement { runner: "Jane Doe".to_string(), start_base: "home".to_string(), end_base: "1".to_string(), is_out: false }],
+            movements: vec![Movement { runner: "Jane Doe".to_string(), start_base: Base::Home, end_base: Base::First, is_out: false }],
         });
     }
 
