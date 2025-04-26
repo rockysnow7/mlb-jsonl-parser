@@ -1,7 +1,7 @@
 mod game;
 mod json_schema;
 
-use game::{Context, Game, GameBuilder, Inning, Movement, PlayType, Base};
+use game::{Context, Game, GameBuilder, Inning, Movement, Play, PlayType, Base};
 use json_schema::{JsonType, KeyValueType, ToRegex};
 use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
 use serde::Deserialize;
@@ -321,6 +321,20 @@ impl Parser {
         self.game_builder.add_context(context);
     }
 
+    /// Adds the given play to the `GameBuilder`.
+    fn add_play(&mut self, play: Play) {
+        if let Some(last_play) = self.game_builder.plays.last() {
+            let last_inning = last_play.get_inning();
+            let play_inning = play.get_inning();
+
+            // if a new half inning is starting, clear the runner positions
+            if last_inning.top != play_inning.top {
+                self.game_builder.clear_runner_positions();
+            }
+        }
+        self.game_builder.add_play(play);
+    }
+
     /// Parses the given line as a `PlayIntroduction` object.
     fn parse_play_introduction(&mut self, line: &str) {
         let play_introduction: PlayIntroduction = serde_json::from_str(line).unwrap();
@@ -329,7 +343,7 @@ impl Parser {
 
         if self.game_builder.play_builder.play_type.unwrap() == PlayType::GameAdvisory {
             let play = self.game_builder.play_builder.build();
-            self.game_builder.add_play(play);
+            self.add_play(play);
         }
     }
 
@@ -366,7 +380,7 @@ impl Parser {
         }
 
         let play = self.game_builder.play_builder.build();
-        self.game_builder.add_play(play);
+        self.add_play(play);
     }
 }
 

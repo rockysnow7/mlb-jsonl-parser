@@ -578,6 +578,55 @@ impl Play {
                 | Self::Ejection { movements, .. } => Some(movements),
         }
     }
+
+    pub fn get_inning(&self) -> &Inning {
+        match self {
+            Self::Groundout { inning, .. }
+            | Self::BuntGroundout { inning, .. }
+            | Self::Strikeout { inning, .. }
+            | Self::Lineout { inning, .. }
+            | Self::BuntLineout { inning, .. }
+            | Self::Flyout { inning, .. }
+            | Self::PopOut { inning, .. }
+            | Self::BuntPopOut { inning, .. }
+            | Self::Forceout { inning, .. }
+            | Self::FieldersChoiceOut { inning, .. }
+            | Self::DoublePlay { inning, .. }
+            | Self::TriplePlay { inning, .. }
+            | Self::RunnerDoublePlay { inning, .. }
+            | Self::RunnerTriplePlay { inning, .. }
+            | Self::GroundedIntoDoublePlay { inning, .. }
+            | Self::StrikeoutDoublePlay { inning, .. }
+            | Self::Pickoff { inning, .. }
+            | Self::PickoffError { inning, .. }
+            | Self::CaughtStealing { inning, .. }
+            | Self::PickoffCaughtStealing { inning, .. }
+            | Self::WildPitch { inning, .. }
+            | Self::RunnerOut { inning, .. }
+            | Self::FieldOut { inning, .. }
+            | Self::BatterOut { inning, .. }
+            | Self::Balk { inning, .. }
+            | Self::PassedBall { inning, .. }
+            | Self::Error { inning, .. }
+            | Self::Single { inning, .. }
+            | Self::Double { inning, .. }
+            | Self::Triple { inning, .. }
+            | Self::HomeRun { inning, .. }
+            | Self::Walk { inning, .. }
+            | Self::IntentWalk { inning, .. }
+            | Self::HitByPitch { inning, .. }
+            | Self::FieldersChoice { inning, .. }
+            | Self::CatcherInterference { inning, .. }
+            | Self::StolenBase { inning, .. }
+            | Self::SacFly { inning, .. }
+            | Self::SacFlyDoublePlay { inning, .. }
+            | Self::SacBunt { inning, .. }
+            | Self::SacBuntDoublePlay { inning, .. }
+            | Self::FieldError { inning, .. }
+            | Self::GameAdvisory { inning, .. }
+            | Self::Ejection { inning, .. } => inning,
+        }
+    }
 }
 
 pub struct PlayBuilder {
@@ -993,6 +1042,14 @@ impl GameBuilder {
             self.process_movements(movements);
         }
         self.plays.push(play);
+    }
+
+    pub fn clear_runner_positions(&mut self) {
+        self.runner_positions = HashMap::from([
+            (Base::First, None),
+            (Base::Second, None),
+            (Base::Third, None),
+        ]);
     }
 
     pub fn process_movements(&mut self, movements: &Vec<Movement>) {

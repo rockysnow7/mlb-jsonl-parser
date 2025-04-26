@@ -16,7 +16,7 @@
 { "inning": { "number": 1, "top": false }, "type": "Flyout" }
 { "batter": "Luke Maile", "pitcher": "Kenny Rosenberg", "fielders": ["Mickey Moniak"], "movements": [{ "runner": "Luke Maile", "start_base": "home", "end_base": "home", "is_out": true }] }
 { "inning": { "number": 1, "top": false }, "type": "Double" }
-{ "batter": "Stuart Fairchild", "pitcher": "Kenny Rosenberg", "movements": [{ "runner": "Stuart Fairchild", "start_base": "home", "end_base": "2", "is_out": false }, { "runner": "Spencer Steer", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Spencer Steer", "start_base": "3", "end_base": "4", "is_out": false }] }
+{ "batter": "Stuart Fairchild", "pitcher": "Kenny Rosenberg", "movements": [{ "runner": "Stuart Fairchild", "start_base": "home", "end_base": "2", "is_out": false }, { "runner": "Spencer Steer", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Spencer Steer", "start_base": "3", "end_base": "home", "is_out": false }] }
 { "inning": { "number": 1, "top": false }, "type": "Strikeout" }
 { "batter": "Jose Barrero", "pitcher": "Kenny Rosenberg", "movements": [{ "runner": "Jose Barrero", "start_base": "home", "end_base": "home", "is_out": true }] }
 { "inning": { "number": 2, "top": true }, "type": "Single" }
@@ -46,13 +46,13 @@
 { "inning": { "number": 3, "top": false }, "type": "Hit By Pitch" }
 { "batter": "Christian Encarnacion-Strand", "pitcher": "Alan Rangel", "movements": [{ "runner": "Edwin Arroyo", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Christian Encarnacion-Strand", "start_base": "home", "end_base": "1", "is_out": false }] }
 { "inning": { "number": 3, "top": false }, "type": "Home Run" }
-{ "batter": "Luke Maile", "pitcher": "Alan Rangel", "movements": [{ "runner": "Luke Maile", "start_base": "home", "end_base": "4", "is_out": false }, { "runner": "Edwin Arroyo", "start_base": "2", "end_base": "4", "is_out": false }, { "runner": "Christian Encarnacion-Strand", "start_base": "1", "end_base": "4", "is_out": false }] }
+{ "batter": "Luke Maile", "pitcher": "Alan Rangel", "movements": [{ "runner": "Luke Maile", "start_base": "home", "end_base": "home", "is_out": false }, { "runner": "Edwin Arroyo", "start_base": "2", "end_base": "home", "is_out": false }, { "runner": "Christian Encarnacion-Strand", "start_base": "1", "end_base": "home", "is_out": false }] }
 { "inning": { "number": 3, "top": false }, "type": "Single" }
 { "batter": "Stuart Fairchild", "pitcher": "Alan Rangel", "movements": [{ "runner": "Stuart Fairchild", "start_base": "home", "end_base": "1", "is_out": false }] }
 { "inning": { "number": 3, "top": false }, "type": "Pop Out" }
 { "batter": "Jose Barrero", "pitcher": "Alan Rangel", "fielders": ["Livan Soto"], "movements": [{ "runner": "Jose Barrero", "start_base": "home", "end_base": "home", "is_out": true }] }
 { "inning": { "number": 3, "top": false }, "type": "Double" }
-{ "batter": "Bubba Thompson", "pitcher": "Alan Rangel", "movements": [{ "runner": "Stuart Fairchild", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Bubba Thompson", "start_base": "home", "end_base": "2", "is_out": false }, { "runner": "Stuart Fairchild", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Stuart Fairchild", "start_base": "3", "end_base": "4", "is_out": false }] }
+{ "batter": "Bubba Thompson", "pitcher": "Alan Rangel", "movements": [{ "runner": "Stuart Fairchild", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Bubba Thompson", "start_base": "home", "end_base": "2", "is_out": false }, { "runner": "Stuart Fairchild", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Stuart Fairchild", "start_base": "3", "end_base": "home", "is_out": false }] }
 { "inning": { "number": 3, "top": false }, "type": "Groundout" }
 { "batter": "Erik González", "pitcher": "Alan Rangel", "fielders": ["Livan Soto"], "movements": [{ "runner": "Bubba Thompson", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Erik González", "start_base": "home", "end_base": "home", "is_out": true }] }
 { "inning": { "number": 4, "top": true }, "type": "Single" }
@@ -68,7 +68,7 @@
 { "inning": { "number": 4, "top": false }, "type": "Single" }
 { "batter": "Edwin Arroyo", "pitcher": "Alan Rangel", "movements": [{ "runner": "Edwin Arroyo", "start_base": "home", "end_base": "1", "is_out": false }] }
 { "inning": { "number": 4, "top": false }, "type": "Single" }
-{ "batter": "Spencer Steer", "pitcher": "Alan Rangel", "movements": [{ "runner": "Edwin Arroyo", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Spencer Steer", "start_base": "home", "end_base": "1", "is_out": false }, { "runner": "Edwin Arroyo", "start_base": "2", "end_base": "4", "is_out": false }] }
+{ "batter": "Spencer Steer", "pitcher": "Alan Rangel", "movements": [{ "runner": "Edwin Arroyo", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Spencer Steer", "start_base": "home", "end_base": "1", "is_out": false }, { "runner": "Edwin Arroyo", "start_base": "2", "end_base": "home", "is_out": false }] }
 { "inning": { "number": 4, "top": false }, "type": "Flyout" }
 { "batter": "Christian Encarnacion-Strand", "pitcher": "Alan Rangel", "fielders": ["Jordyn Adams"], "movements": [{ "runner": "Christian Encarnacion-Strand", "start_base": "home", "end_base": "home", "is_out": true }] }
 { "inning": { "number": 4, "top": false }, "type": "Strikeout" }
@@ -84,9 +84,9 @@
 { "inning": { "number": 5, "top": false }, "type": "Walk" }
 { "batter": "Jose Barrero", "pitcher": "Camden Minacci", "movements": [{ "runner": "Stuart Fairchild", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Jose Barrero", "start_base": "home", "end_base": "1", "is_out": false }] }
 { "inning": { "number": 5, "top": false }, "type": "Single" }
-{ "batter": "Bubba Thompson", "pitcher": "Camden Minacci", "movements": [{ "runner": "Bubba Thompson", "start_base": "home", "end_base": "1", "is_out": false }, { "runner": "Stuart Fairchild", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Stuart Fairchild", "start_base": "3", "end_base": "4", "is_out": false }, { "runner": "Jose Barrero", "start_base": "1", "end_base": "2", "is_out": false }] }
+{ "batter": "Bubba Thompson", "pitcher": "Camden Minacci", "movements": [{ "runner": "Bubba Thompson", "start_base": "home", "end_base": "1", "is_out": false }, { "runner": "Stuart Fairchild", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Stuart Fairchild", "start_base": "3", "end_base": "home", "is_out": false }, { "runner": "Jose Barrero", "start_base": "1", "end_base": "2", "is_out": false }] }
 { "inning": { "number": 5, "top": false }, "type": "Fielders Choice" }
-{ "batter": "Erik González", "pitcher": "Camden Minacci", "fielders": ["Kyren Paris", "Kyren Paris"], "movements": [{ "runner": "Bubba Thompson", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Jose Barrero", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Jose Barrero", "start_base": "3", "end_base": "4", "is_out": false }, { "runner": "Erik González", "start_base": "home", "end_base": "1", "is_out": false }] }
+{ "batter": "Erik González", "pitcher": "Camden Minacci", "fielders": ["Kyren Paris", "Kyren Paris"], "movements": [{ "runner": "Bubba Thompson", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Jose Barrero", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Jose Barrero", "start_base": "3", "end_base": "home", "is_out": false }, { "runner": "Erik González", "start_base": "home", "end_base": "1", "is_out": false }] }
 { "inning": { "number": 5, "top": false }, "type": "Grounded Into Double Play" }
 { "batter": "Mark Mathias", "pitcher": "Camden Minacci", "fielders": ["Richie Martin", "Kyren Paris"], "movements": [{ "runner": "Erik González", "start_base": "1", "end_base": "home", "is_out": true }, { "runner": "Mark Mathias", "start_base": "home", "end_base": "home", "is_out": true }, { "runner": "Bubba Thompson", "start_base": "2", "end_base": "3", "is_out": false }] }
 { "inning": { "number": 5, "top": false }, "type": "Strikeout" }
@@ -96,9 +96,9 @@
 { "inning": { "number": 6, "top": true }, "type": "Single" }
 { "batter": "Anthony Scull", "pitcher": "Julian Aguiar", "movements": [{ "runner": "Anthony Scull", "start_base": "home", "end_base": "1", "is_out": false }] }
 { "inning": { "number": 6, "top": true }, "type": "Single" }
-{ "batter": "Luis Torres", "pitcher": "Julian Aguiar", "movements": [{ "runner": "Luis Torres", "start_base": "home", "end_base": "1", "is_out": false }, { "runner": "Luis Torres", "start_base": "1", "end_base": "3", "is_out": false }, { "runner": "Anthony Scull", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Anthony Scull", "start_base": "2", "end_base": "4", "is_out": false }] }
+{ "batter": "Luis Torres", "pitcher": "Julian Aguiar", "movements": [{ "runner": "Luis Torres", "start_base": "home", "end_base": "1", "is_out": false }, { "runner": "Luis Torres", "start_base": "1", "end_base": "3", "is_out": false }, { "runner": "Anthony Scull", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Anthony Scull", "start_base": "2", "end_base": "home", "is_out": false }] }
 { "inning": { "number": 6, "top": true }, "type": "Sac Fly" }
-{ "batter": "Jason Martin", "pitcher": "Julian Aguiar", "fielders": ["Jacob Hurtubise"], "scoring_runner": "Luis Torres", "movements": [{ "runner": "Jason Martin", "start_base": "home", "end_base": "home", "is_out": true }, { "runner": "Luis Torres", "start_base": "3", "end_base": "4", "is_out": false }] }
+{ "batter": "Jason Martin", "pitcher": "Julian Aguiar", "fielders": ["Jacob Hurtubise"], "scoring_runner": "Luis Torres", "movements": [{ "runner": "Jason Martin", "start_base": "home", "end_base": "home", "is_out": true }, { "runner": "Luis Torres", "start_base": "3", "end_base": "home", "is_out": false }] }
 { "inning": { "number": 6, "top": true }, "type": "Lineout" }
 { "batter": "Werner Blakely", "pitcher": "Julian Aguiar", "fielders": ["Jacob Hurtubise"], "movements": [{ "runner": "Werner Blakely", "start_base": "home", "end_base": "home", "is_out": true }] }
 { "inning": { "number": 6, "top": false }, "type": "Single" }
@@ -120,7 +120,7 @@
 { "inning": { "number": 7, "top": true }, "type": "Walk" }
 { "batter": "Jordyn Adams", "pitcher": "Tejay Antone", "movements": [{ "runner": "Miguel Sanó", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Jordyn Adams", "start_base": "home", "end_base": "1", "is_out": false }] }
 { "inning": { "number": 7, "top": true }, "type": "Single" }
-{ "batter": "Kyren Paris", "pitcher": "Tejay Antone", "movements": [{ "runner": "Kyren Paris", "start_base": "home", "end_base": "1", "is_out": false }, { "runner": "Jordyn Adams", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Jordyn Adams", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Miguel Sanó", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Miguel Sanó", "start_base": "3", "end_base": "4", "is_out": false }] }
+{ "batter": "Kyren Paris", "pitcher": "Tejay Antone", "movements": [{ "runner": "Kyren Paris", "start_base": "home", "end_base": "1", "is_out": false }, { "runner": "Jordyn Adams", "start_base": "1", "end_base": "2", "is_out": false }, { "runner": "Jordyn Adams", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Miguel Sanó", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Miguel Sanó", "start_base": "3", "end_base": "home", "is_out": false }] }
 { "inning": { "number": 7, "top": true }, "type": "Strikeout" }
 { "batter": "Anthony Scull", "pitcher": "Tejay Antone", "movements": [{ "runner": "Anthony Scull", "start_base": "home", "end_base": "home", "is_out": true }] }
 { "inning": { "number": 7, "top": false }, "type": "Single" }
@@ -138,11 +138,11 @@
 { "inning": { "number": 8, "top": true }, "type": "Strikeout" }
 { "batter": "Werner Blakely", "pitcher": "Stevie Branche", "movements": [{ "runner": "Jason Martin", "start_base": "2", "end_base": "3", "is_out": false }, { "runner": "Werner Blakely", "start_base": "home", "end_base": "home", "is_out": true }] }
 { "inning": { "number": 8, "top": true }, "type": "Triple" }
-{ "batter": "Tucker Flint", "pitcher": "Stevie Branche", "movements": [{ "runner": "Tucker Flint", "start_base": "home", "end_base": "3", "is_out": false }, { "runner": "Jason Martin", "start_base": "3", "end_base": "4", "is_out": false }] }
+{ "batter": "Tucker Flint", "pitcher": "Stevie Branche", "movements": [{ "runner": "Tucker Flint", "start_base": "home", "end_base": "3", "is_out": false }, { "runner": "Jason Martin", "start_base": "3", "end_base": "home", "is_out": false }] }
 { "inning": { "number": 8, "top": true }, "type": "Groundout" }
 { "batter": "Zach Humphreys", "pitcher": "Stevie Branche", "fielders": ["Jose Torres"], "movements": [{ "runner": "Zach Humphreys", "start_base": "home", "end_base": "home", "is_out": true }] }
 { "inning": { "number": 8, "top": false }, "type": "Home Run" }
-{ "batter": "Conner Capel", "pitcher": "Jared Southard", "movements": [{ "runner": "Conner Capel", "start_base": "home", "end_base": "4", "is_out": false }] }
+{ "batter": "Conner Capel", "pitcher": "Jared Southard", "movements": [{ "runner": "Conner Capel", "start_base": "home", "end_base": "home", "is_out": false }] }
 { "inning": { "number": 8, "top": false }, "type": "Strikeout" }
 { "batter": "Alex McGarry", "pitcher": "Jared Southard", "movements": [{ "runner": "Alex McGarry", "start_base": "home", "end_base": "home", "is_out": true }] }
 { "inning": { "number": 8, "top": false }, "type": "Hit By Pitch" }
