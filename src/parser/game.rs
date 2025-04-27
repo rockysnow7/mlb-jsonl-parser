@@ -179,6 +179,22 @@ pub struct Inning {
     pub top: bool,
 }
 
+impl Inning {
+    pub fn next(&self) -> Self {
+        if self.top {
+            Self {
+                number: self.number,
+                top: false,
+            }
+        } else {
+            Self {
+                number: self.number + 1,
+                top: true,
+            }
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 #[pyclass(get_all)]
 pub enum Base {
@@ -647,6 +663,31 @@ impl Play {
             | Self::FieldError { inning, .. }
             | Self::GameAdvisory { inning, .. }
             | Self::Ejection { inning, .. } => inning,
+        }
+    }
+
+    pub fn get_runner(&self) -> Option<&String> {
+        match self {
+            Self::Pickoff { runner, .. }
+            | Self::PickoffError { runner, .. }
+            | Self::CaughtStealing { runner, .. }
+            | Self::PickoffCaughtStealing { runner, .. }
+            | Self::WildPitch { runner, .. }
+            | Self::RunnerOut { runner, .. }
+            | Self::FieldOut { runner, .. }
+            | Self::StolenBase { runner, .. }
+            | Self::SacBunt { runner, .. }
+            | Self::SacBuntDoublePlay { runner, .. } => Some(runner),
+            _ => None,
+        }
+    }
+
+    pub fn get_scoring_runner(&self) -> Option<&String> {
+        match self {
+            Self::FieldersChoiceOut { scoring_runner, .. }
+            | Self::SacFly { scoring_runner, .. }
+            | Self::SacFlyDoublePlay { scoring_runner, .. } => Some(scoring_runner),
+            _ => None,
         }
     }
 }

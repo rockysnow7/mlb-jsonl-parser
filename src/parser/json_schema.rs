@@ -2,10 +2,6 @@ pub trait ToRegex {
     fn to_regex(&self) -> String;
 }
 
-pub trait ToGBNF {
-    fn to_gbnf(&self, num_names: usize) -> Vec<String>;
-}
-
 pub struct KeyValueType {
     key: String,
     value: Box<JsonType>,
@@ -37,14 +33,13 @@ pub enum JsonType {
 
 impl JsonType {
     pub fn boolean() -> Self {
-        Self::Boolean {
-            regex: r"(true|false)".to_string(),
-        }
+        Self::boolean_with_options(vec![true, false])
     }
 
-    pub fn boolean_from(b: bool) -> Self {
+    pub fn boolean_with_options(options: Vec<bool>) -> Self {
+        let regex = options.iter().map(|b| b.to_string()).collect::<Vec<_>>().join("|");
         Self::Boolean {
-            regex: if b { "true" } else { "false" }.to_string(),
+            regex: format!("({regex})"),
         }
     }
 
@@ -60,6 +55,10 @@ impl JsonType {
 
     pub fn integer_max_digits(max_digits: usize) -> Self {
         Self::integer_with_regex(&format!(r"[1-9]\d{{0,{}}}", max_digits - 1))
+    }
+
+    pub fn integer_with_options(options: Vec<usize>) -> Self {
+        Self::integer_with_regex(&options.iter().map(|i| i.to_string()).collect::<Vec<_>>().join("|"))
     }
 
     pub fn string_with_regex(regex: &str) -> Self {
@@ -94,7 +93,7 @@ impl ToRegex for JsonType {
         match self {
             JsonType::Boolean { regex } | JsonType::Integer { regex } | JsonType::String { regex } => regex.to_string(),
             JsonType::Array(items) => format!(
-                "\\[({}(, {})*)?\\]",
+                "\\[{}(, {})*\\]",
                 items.to_regex(),
                 items.to_regex(),
             ),
@@ -107,5 +106,16 @@ impl ToRegex for JsonType {
                 items.iter().map(|item| format!("({})", item.to_regex())).collect::<Vec<_>>().join("|"),
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn json_array_to_regex() {
+        let array = JsonType::array(JsonType::integer());
+        assert_eq!(array.to_regex(), r"\[(([1-9]\d+)(, ([1-9]\d+))*)?\]");
     }
 }

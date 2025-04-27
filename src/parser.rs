@@ -116,23 +116,6 @@ fn context_section_json() -> JsonType {
     ])
 }
 
-/// The JSON schema for a play introduction.
-fn play_introduction_json() -> JsonType {
-    let inning = JsonType::key_value("inning", JsonType::object(vec![
-        JsonType::key_value("number", JsonType::integer_max_digits(3)),
-        JsonType::key_value("top", JsonType::boolean()),
-    ]));
-    let play_type = JsonType::key_value(
-        "type",
-        JsonType::string_with_regex(&PlayType::iter().map(|play_type| play_type.to_string()).collect::<Vec<_>>().join("|")),
-    );
-
-    JsonType::object(vec![
-        inning,
-        play_type,
-    ])
-}
-
 /// The type of line being parsed.
 #[derive(Debug, PartialEq, Eq)]
 enum LineType {
@@ -184,13 +167,49 @@ pub struct Parser {
 }
 
 impl Parser {
+    /// The JSON schema for a play introduction.
+    fn play_introduction_json(&self) -> JsonType {
+        let (valid_inning_numbers, valid_inning_tops) = if let Some(play) = self.game_builder.plays.last() {
+            let current_inning = play.get_inning();
+            let next_inning = current_inning.next();
+
+            let mut valid_inning_numbers = vec![current_inning.number as usize];
+            let mut valid_inning_tops = vec![current_inning.top];
+
+            if !valid_inning_numbers.contains(&(next_inning.number as usize)) {
+                valid_inning_numbers.push(next_inning.number as usize);
+            }
+            if !valid_inning_tops.contains(&next_inning.top) {
+                valid_inning_tops.push(next_inning.top);
+            }
+
+            (valid_inning_numbers, valid_inning_tops)
+        } else {
+            (vec![1], vec![true])
+        };
+
+        let inning = JsonType::key_value("inning", JsonType::object(vec![
+            JsonType::key_value("number", JsonType::integer_with_options(valid_inning_numbers)),
+            JsonType::key_value("top", JsonType::boolean_with_options(valid_inning_tops)),
+        ]));
+        let play_type = JsonType::key_value(
+            "type",
+            JsonType::string_with_regex(&PlayType::iter().map(|play_type| play_type.to_string()).collect::<Vec<_>>().join("|")),
+        );
+
+        JsonType::object(vec![
+            inning,
+            play_type,
+        ])
+    }
+    
     /// Generates the JSON schema for a given `Movement` object.
     fn movement_json(&self, movement: &Movement) -> JsonType {
         JsonType::object(vec![
             JsonType::key_value("runner", JsonType::string_with_regex(&movement.runner.replace(".", "\\."))),
             JsonType::key_value("start_base", JsonType::string_with_regex(&movement.start_base.to_string())),
             JsonType::key_value("end_base", JsonType::string_with_regex(&movement.end_base.to_string())),
-            JsonType::key_value("is_out", JsonType::boolean_from(movement.is_out)),
+            JsonType::key_value("is_out", JsonType::boolean_with_options(vec![movement.is_out])),
         ])
     }
 
@@ -266,6 +285,43 @@ impl Parser {
             is_out: movement.is_out,
         })).flatten().collect::<Vec<_>>();
         valid_movements.extend(pinch_movements);
+
+        // add the runner's and scoring runner's movements
+        if let Some(runner) = &self.game_builder.play_builder.runner {
+            let valid_to_bases = Base::Home.valid_to_bases();
+            for to_base in valid_to_bases {
+                valid_movements.push(Movement {
+                    runner: runner.clone(),
+                    start_base: Base::Home,
+                    end_base: to_base,
+                    is_out: false,
+                });
+                valid_movements.push(Movement {
+                    runner: runner.clone(),
+                    start_base: Base::Home,
+                    end_base: to_base,
+                    is_out: true,
+                });
+            }
+        }
+
+        if let Some(scoring_runner) = &self.game_builder.play_builder.scoring_runner {
+            let valid_to_bases = Base::Home.valid_to_bases();
+            for to_base in valid_to_bases {
+                valid_movements.push(Movement {
+                    runner: scoring_runner.clone(),
+                    start_base: Base::Home,
+                    end_base: to_base,
+                    is_out: false,
+                });
+                valid_movements.push(Movement {
+                    runner: scoring_runner.clone(),
+                    start_base: Base::Home,
+                    end_base: to_base,
+                    is_out: true,
+                });
+            }
+        }
 
         let valid_movements_json = valid_movements.iter().map(|movement| self.movement_json(movement)).collect::<Vec<_>>();
         let valid_movements_json = JsonType::array(JsonType::Union(valid_movements_json));
@@ -501,7 +557,7 @@ impl Parser {
     fn generate_regex(&self) -> String {
         match &self.line_type {
             LineType::Context => context_section_json().to_regex(),
-            LineType::PlayIntroduction => play_introduction_json().to_regex(),
+            LineType::PlayIntroduction => self.play_introduction_json().to_regex(),
             LineType::PlayInformation => self.play_information_json_for_play_type(&self.game_builder.play_builder.play_type.unwrap()).to_regex(),
             LineType::PlayMovements => self.movements_json().to_regex(),
         }
